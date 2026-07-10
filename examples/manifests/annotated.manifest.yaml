@@ -23,6 +23,11 @@ model:
     - anthropic/claude-sonnet-5        # string shorthand "provider/name"...
     - provider: openai                 # ...or the explicit object form
       name: gpt-4o-mini
+  pricing:               # optional $/MTok overrides of the shipped pricing table
+    anthropic/claude-sonnet-5:
+      input_per_mtok: 3.00
+      output_per_mtok: 15.00
+      cache_read_per_mtok: 0.30
 
 # Named agent configurations; one active per run (--agent NAME, default: first).
 agents:

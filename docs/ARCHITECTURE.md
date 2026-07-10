@@ -106,7 +106,7 @@ One `agent.manifest.yaml` per application; the root of all configuration. Field 
 |---|---|
 | `version` | Manifest schema version, semver-checked by loader. |
 | `intent` | Natural-language purpose. Injected verbatim as the first block of the system prompt. |
-| `model` | `provider`, `name`, `params{}`, `fallback: [provider/name, …]` — ordered chain. |
+| `model` | `provider`, `name`, `params{}`, `fallback: [provider/name, …]` — ordered chain; `pricing{}` — per-`provider/model` $/Mtok overrides (A9; added in Phase 2 — §5 originally omitted it). |
 | `agents[]` | Named configs: `name`, `persona`, optional `model`/`tools`/`skills` overrides (A4). |
 | `tools` | `mcp_servers[]` (`name`, `transport: stdio|http`, `command`/`url`, `env`), `allowlist[]` of `server.tool` globs. Absent allowlist = deny all (fail closed). |
 | `skills[]` | Directory paths or plugin-provided names. |
@@ -339,7 +339,8 @@ agent-loop-harness/
 │   ├── storage/                        # shared SQLite plumbing: connection, WAL, migrations,
 │   │   └── …                           #   FTS5/vec capability checks (A10)
 │   └── observability/                  # Phase 10
-│       ├── emitter.py                  # TraceEmitter Protocol (injected everywhere)
+│       ├── emitter.py                  # TraceEmitter implementations (the Protocol
+│       │                               #   lives in types.py per §3 rule 3)
 │       ├── events.py │ sinks.py        # JSONL + sqlite index + console
 │       └── replay.py                   # recorded-boundary substitution
 ├── examples/codebase-qa/               # Phase 11: manifest, docs corpus, conventions seed

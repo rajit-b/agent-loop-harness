@@ -1,0 +1,33 @@
+{
+  "model": "qwen2.5:14b",
+  "messages": [
+    {"role": "system", "content": "You answer questions about code."},
+    {"role": "user", "content": "Where is the config loader?"},
+    {
+      "role": "assistant",
+      "content": "I'll search.",
+      "tool_calls": [
+        {"function": {"name": "grep", "arguments": {"pattern": "load_config"}}},
+        {"function": {"name": "ls", "arguments": {"path": "src"}}}
+      ]
+    },
+    {"role": "tool", "content": "src/agentloop/config/loader.py"},
+    {"role": "tool", "content": "config/  models/", "tool_name": "ls"}
+  ],
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Search files for a pattern",
+        "parameters": {
+          "type": "object",
+          "properties": {"pattern": {"type": "string"}},
+          "required": ["pattern"]
+        }
+      }
+    }
+  ],
+  "options": {"temperature": 0.2}
+}

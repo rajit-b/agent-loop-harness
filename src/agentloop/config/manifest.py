@@ -55,6 +55,14 @@ class ModelRef(_Base):
         return value
 
 
+class PricingEntry(_Base):
+    """USD per million tokens; overrides the shipped pricing table (A9)."""
+
+    input_per_mtok: Decimal = Field(ge=0)
+    output_per_mtok: Decimal = Field(ge=0)
+    cache_read_per_mtok: Decimal = Field(default=Decimal("0"), ge=0)
+
+
 class ModelConfig(_Base):
     provider: str = Field(min_length=1, description="Primary provider, e.g. 'ollama'.")
     name: str = Field(min_length=1, description="Model name as the provider knows it.")
@@ -64,6 +72,18 @@ class ModelConfig(_Base):
     fallback: tuple[ModelRef, ...] = Field(
         default=(), description="Ordered fallback chain, tried after the primary is exhausted."
     )
+    pricing: dict[str, PricingEntry] = Field(
+        default_factory=dict,
+        description="Per-'provider/model' price overrides for cost accounting.",
+    )
+
+    @field_validator("pricing")
+    @classmethod
+    def _pricing_keys(cls, v: dict[str, PricingEntry]) -> dict[str, PricingEntry]:
+        for key in v:
+            if "/" not in key:
+                raise ValueError(f"pricing key must be 'provider/model', got {key!r}")
+        return v
 
 
 class MCPServerConfig(_Base):

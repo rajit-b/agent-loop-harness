@@ -1,0 +1,35 @@
+{
+  "model": "claude-opus-4-8",
+  "max_tokens": 4096,
+  "messages": [
+    {"role": "user", "content": "Where is the config loader?"},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "text", "text": "I'll search."},
+        {"type": "tool_use", "id": "call_0", "name": "grep", "input": {"pattern": "load_config"}},
+        {"type": "tool_use", "id": "call_1", "name": "ls", "input": {"path": "src"}}
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {"type": "tool_result", "tool_use_id": "call_0", "content": "src/agentloop/config/loader.py"},
+        {"type": "tool_result", "tool_use_id": "call_1", "content": "config/  models/"}
+      ]
+    }
+  ],
+  "temperature": 0.2,
+  "system": "You answer questions about code.",
+  "tools": [
+    {
+      "name": "grep",
+      "description": "Search files for a pattern",
+      "input_schema": {
+        "type": "object",
+        "properties": {"pattern": {"type": "string"}},
+        "required": ["pattern"]
+      }
+    }
+  ]
+}

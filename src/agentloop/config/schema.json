@@ -376,6 +376,14 @@
           "title": "Params",
           "type": "object"
         },
+        "pricing": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PricingEntry"
+          },
+          "description": "Per-'provider/model' price overrides for cost accounting.",
+          "title": "Pricing",
+          "type": "object"
+        },
         "provider": {
           "description": "Primary provider, e.g. 'ollama'.",
           "minLength": 1,
@@ -450,6 +458,58 @@
         "source"
       ],
       "title": "PluginConfig",
+      "type": "object"
+    },
+    "PricingEntry": {
+      "additionalProperties": false,
+      "description": "USD per million tokens; overrides the shipped pricing table (A9).",
+      "properties": {
+        "cache_read_per_mtok": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Cache Read Per Mtok"
+        },
+        "input_per_mtok": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Input Per Mtok"
+        },
+        "output_per_mtok": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Output Per Mtok"
+        }
+      },
+      "required": [
+        "input_per_mtok",
+        "output_per_mtok"
+      ],
+      "title": "PricingEntry",
       "type": "object"
     },
     "RagConfig": {
