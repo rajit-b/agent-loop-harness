@@ -1,0 +1,45 @@
+[project]
+name = "agent-loop-harness"
+version = "0.0.1"
+description = "Local, model-agnostic agent loop framework"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "import-linter>=2.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentloop"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+# Layer contracts (§3 of docs/ARCHITECTURE.md). Grows one entry per phase;
+# a violated layer fails CI. First-listed layer is the highest.
+[tool.importlinter]
+root_package = "agentloop"
+
+[[tool.importlinter.contracts]]
+name = "Core layering"
+type = "layers"
+layers = [
+    "agentloop.config",
+    "agentloop.types",
+]

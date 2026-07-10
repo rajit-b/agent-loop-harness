@@ -1,0 +1,680 @@
+{
+  "$defs": {
+    "AgentConfig": {
+      "additionalProperties": false,
+      "description": "A named agent configuration; one is active per run (A4).",
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Override of the top-level model; None inherits."
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "persona": {
+          "default": "",
+          "description": "Appended to the system prompt after intent.",
+          "title": "Persona",
+          "type": "string"
+        },
+        "skills": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Subset of top-level skills; None inherits all.",
+          "title": "Skills"
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Subset of the allowlist this agent may use; None inherits all.",
+          "title": "Tools"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "AgentConfig",
+      "type": "object"
+    },
+    "ChunkConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "overlap": {
+          "default": 64,
+          "minimum": 0,
+          "title": "Overlap",
+          "type": "integer"
+        },
+        "size": {
+          "default": 512,
+          "description": "Chunk size in tokens.",
+          "exclusiveMinimum": 0,
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "title": "ChunkConfig",
+      "type": "object"
+    },
+    "EmbeddingConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "default": "nomic-embed-text",
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "default": "ollama",
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "title": "EmbeddingConfig",
+      "type": "object"
+    },
+    "HookEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "handler": {
+          "description": "Import path: 'pkg.mod:attr' or 'pkg.mod.attr'.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*(:[A-Za-z_][A-Za-z0-9_]*)?$",
+          "title": "Handler",
+          "type": "string"
+        },
+        "priority": {
+          "default": 100,
+          "description": "Ascending execution order; ties by registration order (manifest before plugins).",
+          "title": "Priority",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "handler"
+      ],
+      "title": "HookEntry",
+      "type": "object"
+    },
+    "HybridConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fts_k": {
+          "default": 20,
+          "description": "Candidates from FTS5 BM25.",
+          "exclusiveMinimum": 0,
+          "title": "Fts K",
+          "type": "integer"
+        },
+        "rrf_k": {
+          "default": 60,
+          "description": "RRF rank constant.",
+          "exclusiveMinimum": 0,
+          "title": "Rrf K",
+          "type": "integer"
+        },
+        "vector_k": {
+          "default": 20,
+          "description": "Candidates from sqlite-vec.",
+          "exclusiveMinimum": 0,
+          "title": "Vector K",
+          "type": "integer"
+        }
+      },
+      "title": "HybridConfig",
+      "type": "object"
+    },
+    "LimitsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "max_cost_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1.00",
+          "title": "Max Cost Usd"
+        },
+        "max_steps": {
+          "default": 16,
+          "description": "PLAN entries per turn.",
+          "exclusiveMinimum": 0,
+          "title": "Max Steps",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 200000,
+          "description": "Cumulative, per run.",
+          "exclusiveMinimum": 0,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "max_wall_clock_s": {
+          "default": 300.0,
+          "exclusiveMinimum": 0,
+          "title": "Max Wall Clock S",
+          "type": "number"
+        },
+        "reflection_retries": {
+          "default": 1,
+          "description": "Max REFLECT\u2192PLAN bounces.",
+          "minimum": 0,
+          "title": "Reflection Retries",
+          "type": "integer"
+        },
+        "tool_timeout_s": {
+          "default": 30.0,
+          "description": "Per tool call.",
+          "exclusiveMinimum": 0,
+          "title": "Tool Timeout S",
+          "type": "number"
+        }
+      },
+      "title": "LimitsConfig",
+      "type": "object"
+    },
+    "LongTermMemoryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "decay_lambda": {
+          "default": 0.01,
+          "description": "Per-day decay rate.",
+          "minimum": 0.0,
+          "title": "Decay Lambda",
+          "type": "number"
+        },
+        "dedup_cosine": {
+          "default": 0.92,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Dedup Cosine",
+          "type": "number"
+        },
+        "promotion_confidence": {
+          "default": 0.7,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Promotion Confidence",
+          "type": "number"
+        },
+        "recurrence_min": {
+          "default": 2,
+          "description": "Sessions/mentions required for non-explicit promotion.",
+          "minimum": 1,
+          "title": "Recurrence Min",
+          "type": "integer"
+        },
+        "score_floor": {
+          "default": 0.15,
+          "description": "Below this, facts are archived (never deleted).",
+          "minimum": 0.0,
+          "title": "Score Floor",
+          "type": "number"
+        }
+      },
+      "title": "LongTermMemoryConfig",
+      "type": "object"
+    },
+    "MCPServerConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "args": {
+          "default": [],
+          "description": "stdio only: argv for the command.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "stdio only: executable to spawn.",
+          "title": "Command"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "stdio only: the ONLY environment variables passed to the server (scrubbed-env policy, A7).",
+          "title": "Env",
+          "type": "object"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "transport": {
+          "enum": [
+            "stdio",
+            "http"
+          ],
+          "title": "Transport",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "http only: server base URL.",
+          "title": "Url"
+        }
+      },
+      "required": [
+        "name",
+        "transport"
+      ],
+      "title": "MCPServerConfig",
+      "type": "object"
+    },
+    "MemoryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "long_term": {
+          "$ref": "#/$defs/LongTermMemoryConfig",
+          "default": {
+            "decay_lambda": 0.01,
+            "dedup_cosine": 0.92,
+            "promotion_confidence": 0.7,
+            "recurrence_min": 2,
+            "score_floor": 0.15
+          }
+        },
+        "short_term": {
+          "$ref": "#/$defs/ShortTermMemoryConfig",
+          "default": {
+            "max_tokens": 8000
+          }
+        }
+      },
+      "title": "MemoryConfig",
+      "type": "object"
+    },
+    "ModelConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "fallback": {
+          "default": [],
+          "description": "Ordered fallback chain, tried after the primary is exhausted.",
+          "items": {
+            "$ref": "#/$defs/ModelRef"
+          },
+          "title": "Fallback",
+          "type": "array"
+        },
+        "name": {
+          "description": "Model name as the provider knows it.",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": true,
+          "description": "Provider-passthrough sampling params.",
+          "title": "Params",
+          "type": "object"
+        },
+        "provider": {
+          "description": "Primary provider, e.g. 'ollama'.",
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelConfig",
+      "type": "object"
+    },
+    "ModelRef": {
+      "additionalProperties": false,
+      "description": "A provider/model pair; accepts the string shorthand \"provider/name\".",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelRef",
+      "type": "object"
+    },
+    "PluginConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "description": "Local path or installed distribution name.",
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "PEP 440 version constraint, e.g. '>=0.2,<0.3'.",
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "title": "PluginConfig",
+      "type": "object"
+    },
+    "RagConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk": {
+          "$ref": "#/$defs/ChunkConfig",
+          "default": {
+            "overlap": 64,
+            "size": 512
+          }
+        },
+        "embedding": {
+          "$ref": "#/$defs/EmbeddingConfig",
+          "default": {
+            "model": "nomic-embed-text",
+            "provider": "ollama"
+          }
+        },
+        "hybrid": {
+          "$ref": "#/$defs/HybridConfig",
+          "default": {
+            "fts_k": 20,
+            "rrf_k": 60,
+            "vector_k": 20
+          }
+        },
+        "reranker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reranker name; None = RRF only (A6).",
+          "title": "Reranker"
+        },
+        "sources": {
+          "default": [],
+          "description": "Files/dirs to ingest.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "top_k": {
+          "default": 8,
+          "description": "Chunks injected after fusion/rerank.",
+          "exclusiveMinimum": 0,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "title": "RagConfig",
+      "type": "object"
+    },
+    "ShortTermMemoryConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "max_tokens": {
+          "default": 8000,
+          "description": "Episodic log size that triggers overflow summarization.",
+          "exclusiveMinimum": 0,
+          "title": "Max Tokens",
+          "type": "integer"
+        }
+      },
+      "title": "ShortTermMemoryConfig",
+      "type": "object"
+    },
+    "ToolsConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "allowlist": {
+          "default": [],
+          "description": "Globs of 'server.tool' permitted to execute. Empty means deny all (fail closed).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowlist",
+          "type": "array"
+        },
+        "mcp_servers": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MCPServerConfig"
+          },
+          "title": "Mcp Servers",
+          "type": "array"
+        }
+      },
+      "title": "ToolsConfig",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Root of all configuration: one agent.manifest.yaml per application.",
+  "properties": {
+    "agents": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentConfig"
+      },
+      "title": "Agents",
+      "type": "array"
+    },
+    "hooks": {
+      "additionalProperties": {
+        "items": {
+          "$ref": "#/$defs/HookEntry"
+        },
+        "type": "array"
+      },
+      "propertyNames": {
+        "enum": [
+          "pre_model",
+          "post_model",
+          "pre_tool",
+          "post_tool",
+          "pre_retrieval",
+          "post_retrieval",
+          "on_error",
+          "on_turn_end"
+        ]
+      },
+      "title": "Hooks",
+      "type": "object"
+    },
+    "intent": {
+      "description": "Natural-language purpose; injected verbatim as the first system-prompt block.",
+      "title": "Intent",
+      "type": "string"
+    },
+    "limits": {
+      "$ref": "#/$defs/LimitsConfig",
+      "default": {
+        "max_cost_usd": "1.00",
+        "max_steps": 16,
+        "max_tokens": 200000,
+        "max_wall_clock_s": 300.0,
+        "reflection_retries": 1,
+        "tool_timeout_s": 30.0
+      }
+    },
+    "memory": {
+      "$ref": "#/$defs/MemoryConfig",
+      "default": {
+        "enabled": true,
+        "long_term": {
+          "decay_lambda": 0.01,
+          "dedup_cosine": 0.92,
+          "promotion_confidence": 0.7,
+          "recurrence_min": 2,
+          "score_floor": 0.15
+        },
+        "short_term": {
+          "max_tokens": 8000
+        }
+      }
+    },
+    "model": {
+      "$ref": "#/$defs/ModelConfig"
+    },
+    "plugins": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PluginConfig"
+      },
+      "title": "Plugins",
+      "type": "array"
+    },
+    "rag": {
+      "$ref": "#/$defs/RagConfig",
+      "default": {
+        "chunk": {
+          "overlap": 64,
+          "size": 512
+        },
+        "embedding": {
+          "model": "nomic-embed-text",
+          "provider": "ollama"
+        },
+        "hybrid": {
+          "fts_k": 20,
+          "rrf_k": 60,
+          "vector_k": 20
+        },
+        "reranker": null,
+        "sources": [],
+        "top_k": 8
+      }
+    },
+    "skills": {
+      "default": [],
+      "description": "Skill directory paths or plugin-provided skill names.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Skills",
+      "type": "array"
+    },
+    "tools": {
+      "$ref": "#/$defs/ToolsConfig",
+      "default": {
+        "allowlist": [],
+        "mcp_servers": []
+      }
+    },
+    "version": {
+      "description": "Manifest schema version (quote it: '1.0', not 1.0).",
+      "pattern": "^1(\\.\\d+)?$",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "intent",
+    "model"
+  ],
+  "title": "agent.manifest.yaml",
+  "type": "object"
+}

@@ -1,0 +1,115 @@
+# agent.manifest.yaml — annotated example exercising every section.
+# This file is a test fixture: it must always validate against
+# src/agentloop/config/schema.json (generated from the pydantic models).
+#
+# Resolution order (increasing precedence): defaults < this file < env < CLI.
+#   env:  AGENTLOOP_ prefix, '__' nests → AGENTLOOP_MODEL__PROVIDER=openai
+#   CLI:  dotted paths → --set model.provider=openai
+# Scalars and lists replace wholesale; mappings deep-merge.
+
+version: "1.0"          # manifest schema version — quote it, YAML floats fail validation
+
+# Injected verbatim as the first block of the system prompt.
+intent: >
+  Answer questions about this codebase accurately, citing files and lines.
+  Prefer reading code over guessing; say so when unsure.
+
+model:
+  provider: ollama       # default provider; local models cost $0 but tokens still count
+  name: qwen2.5:14b
+  params:                # passthrough sampling params, provider-specific
+    temperature: 0.2
+  fallback:              # ordered chain, tried after per-provider retries exhaust
+    - anthropic/claude-sonnet-5        # string shorthand "provider/name"...
+    - provider: openai                 # ...or the explicit object form
+      name: gpt-4o-mini
+
+# Named agent configurations; one active per run (--agent NAME, default: first).
+agents:
+  - name: qa
+    persona: You are a precise codebase Q&A assistant.
+    # model/tools/skills omitted → inherits top-level values
+  - name: reviewer
+    persona: You review diffs for correctness only.
+    model:
+      provider: anthropic
+      name: claude-sonnet-5
+    tools: ["fs.read_*", "ripgrep.*"]   # subset of the allowlist below
+    skills: [code-search]
+
+tools:
+  mcp_servers:
+    - name: fs
+      transport: stdio
+      command: mcp-server-filesystem
+      args: ["--root", "."]
+      env:                              # the ONLY env vars the server process gets
+        LOG_LEVEL: warn
+    - name: ripgrep
+      transport: stdio
+      command: mcp-server-ripgrep
+    - name: jira
+      transport: http
+      url: http://localhost:8931
+  # Globs of "server.tool". Anything not matched is denied — no allowlist, no execution.
+  allowlist:
+    - fs.read_*
+    - fs.list_*
+    - ripgrep.*
+    - jira.issue_lookup
+
+# Skill directories (skill.yaml + SKILL.md). Only descriptions enter context
+# until a skill is selected (progressive disclosure).
+skills:
+  - ./skills/code-search
+
+plugins:
+  - name: jira
+    source: ./plugins/jira            # local path or installed distribution name
+    version: ">=0.1,<0.2"             # PEP 440 constraint against the dist version
+    config:
+      base_url: https://example.atlassian.net
+
+# Event → ordered handlers. Lower priority runs first; mutations compose left-to-right.
+hooks:
+  pre_tool:
+    - handler: examples.hooks:redact_secrets   # "pkg.mod:attr" or "pkg.mod.attr"
+      priority: 10
+      config:
+        patterns: ["(?i)api[_-]?key", "(?i)secret"]
+  on_turn_end:
+    - handler: examples.hooks:log_turn
+
+rag:
+  sources: [./docs, ./README.md]
+  chunk:
+    size: 512            # tokens
+    overlap: 64          # must be < size
+  embedding:
+    provider: ollama
+    model: nomic-embed-text
+  top_k: 8               # chunks injected after fusion/rerank
+  hybrid:
+    vector_k: 20         # sqlite-vec candidates
+    fts_k: 20            # FTS5 BM25 candidates
+    rrf_k: 60            # RRF rank constant
+  reranker: null         # null = deterministic RRF only
+
+memory:
+  enabled: true
+  short_term:
+    max_tokens: 8000     # episodic log size that triggers overflow summarization
+  long_term:
+    promotion_confidence: 0.7   # extractor confidence needed to promote
+    recurrence_min: 2           # sessions/mentions needed unless explicitly stated
+    dedup_cosine: 0.92          # ≥ this vs an existing fact → merge, don't insert
+    decay_lambda: 0.01          # per-day exponential decay
+    score_floor: 0.15           # below → archived, never deleted
+
+limits:
+  max_steps: 16          # PLAN entries per turn
+  max_tokens: 200000     # cumulative per run
+  max_wall_clock_s: 300
+  max_cost_usd: 1.00
+  tool_timeout_s: 30
+  reflection_retries: 1  # REFLECT→PLAN bounces allowed
