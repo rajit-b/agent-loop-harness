@@ -62,6 +62,9 @@ tools:
     - fs.list_*
     - ripgrep.*
     - jira.issue_lookup
+  sandbox:
+    roots: ["."]           # path-hinted tool args must resolve inside these
+    max_result_chars: 100000  # tool results truncated beyond this
 
 # Skill directories (skill.yaml + SKILL.md). Only descriptions enter context
 # until a skill is selected (progressive disclosure).

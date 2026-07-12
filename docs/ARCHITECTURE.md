@@ -108,7 +108,7 @@ One `agent.manifest.yaml` per application; the root of all configuration. Field 
 | `intent` | Natural-language purpose. Injected verbatim as the first block of the system prompt. |
 | `model` | `provider`, `name`, `params{}`, `fallback: [provider/name, …]` — ordered chain; `pricing{}` — per-`provider/model` $/Mtok overrides (A9; added in Phase 2 — §5 originally omitted it). |
 | `agents[]` | Named configs: `name`, `persona`, optional `model`/`tools`/`skills` overrides (A4). |
-| `tools` | `mcp_servers[]` (`name`, `transport: stdio|http`, `command`/`url`, `env`), `allowlist[]` of `server.tool` globs. Absent allowlist = deny all (fail closed). |
+| `tools` | `mcp_servers[]` (`name`, `transport: stdio|http`, `command`/`url`, `env`), `allowlist[]` of `server.tool` globs — absent allowlist = deny all (fail closed); `sandbox{roots, max_result_chars}` — A7 path-jail roots and result cap (added in Phase 4; §5 originally omitted it). |
 | `skills[]` | Directory paths or plugin-provided names. |
 | `plugins[]` | `name`, `source` (path or installed dist), `version` constraint, `config{}`. |
 | `hooks{}` | Event name → ordered list of `{handler, priority, config}`. |

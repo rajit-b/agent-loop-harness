@@ -123,7 +123,8 @@ class ToolSpec(_Frozen):
         description="JSON Schema of the tool's arguments.",
     )
     source: Literal["mcp_server", "plugin", "builtin"] = "builtin"
-    permissions_tag: str | None = None
+    permissions_tag: str | None = None  # canonical 'server.tool' id for gating
+    path_hints: tuple[str, ...] = ()  # argument names holding filesystem paths
 
 
 class Message(_Frozen):

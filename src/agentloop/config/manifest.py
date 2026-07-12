@@ -113,6 +113,19 @@ class MCPServerConfig(_Base):
         return self
 
 
+class SandboxConfig(_Base):
+    """A7 enforcement knobs (added in Phase 4 — §5 originally omitted it)."""
+
+    roots: tuple[str, ...] = Field(
+        default=(),
+        description="Filesystem roots path-hinted tool arguments must stay "
+        "within. Empty = no path jail.",
+    )
+    max_result_chars: int = Field(
+        default=100_000, gt=0, description="Tool results are truncated beyond this."
+    )
+
+
 class ToolsConfig(_Base):
     mcp_servers: tuple[MCPServerConfig, ...] = ()
     allowlist: tuple[str, ...] = Field(
@@ -120,6 +133,7 @@ class ToolsConfig(_Base):
         description="Globs of 'server.tool' permitted to execute. "
         "Empty means deny all (fail closed).",
     )
+    sandbox: SandboxConfig = SandboxConfig()
 
     @model_validator(mode="after")
     def _unique_server_names(self) -> ToolsConfig:

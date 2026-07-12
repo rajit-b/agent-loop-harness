@@ -570,6 +570,30 @@
       "title": "RagConfig",
       "type": "object"
     },
+    "SandboxConfig": {
+      "additionalProperties": false,
+      "description": "A7 enforcement knobs (added in Phase 4 \u2014 \u00a75 originally omitted it).",
+      "properties": {
+        "max_result_chars": {
+          "default": 100000,
+          "description": "Tool results are truncated beyond this.",
+          "exclusiveMinimum": 0,
+          "title": "Max Result Chars",
+          "type": "integer"
+        },
+        "roots": {
+          "default": [],
+          "description": "Filesystem roots path-hinted tool arguments must stay within. Empty = no path jail.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Roots",
+          "type": "array"
+        }
+      },
+      "title": "SandboxConfig",
+      "type": "object"
+    },
     "ShortTermMemoryConfig": {
       "additionalProperties": false,
       "properties": {
@@ -603,6 +627,13 @@
           },
           "title": "Mcp Servers",
           "type": "array"
+        },
+        "sandbox": {
+          "$ref": "#/$defs/SandboxConfig",
+          "default": {
+            "max_result_chars": 100000,
+            "roots": []
+          }
         }
       },
       "title": "ToolsConfig",
@@ -720,7 +751,11 @@
       "$ref": "#/$defs/ToolsConfig",
       "default": {
         "allowlist": [],
-        "mcp_servers": []
+        "mcp_servers": [],
+        "sandbox": {
+          "max_result_chars": 100000,
+          "roots": []
+        }
       }
     },
     "version": {
