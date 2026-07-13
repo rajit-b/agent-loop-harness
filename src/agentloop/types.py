@@ -39,6 +39,11 @@ class TransientProviderError(ProviderError):
     """Retryable provider failure: network error, timeout, 429, 5xx."""
 
 
+class PluginError(AgentLoopError):
+    """A plugin failed to load, validate, or register. Fails closed: the
+    plugin is skipped and none of its registrations survive."""
+
+
 class SkillError(AgentLoopError):
     """Explicit skill selection failed (unknown skill or unsatisfiable
     required_tools). Loud by design (§10)."""
