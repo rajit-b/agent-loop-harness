@@ -38,6 +38,7 @@ from agentloop.hooks.contract import (
 from agentloop.loop.budgets import BudgetTracker
 from agentloop.loop.context import TurnContext, TurnStatus, build_system_prompt
 from agentloop.models.protocol import CompletionRequest, CompletionResult, ModelProvider
+from agentloop.skills.manager import SkillManager
 from agentloop.tools.executor import ToolExecutor
 from agentloop.types import (
     AgentLoopError,
@@ -87,6 +88,7 @@ class AgentLoop:
         persona: str = "",
         limits: LimitsConfig | None = None,
         hooks: HookBus | None = None,
+        skills: SkillManager | None = None,
         emitter: TraceEmitter | None = None,
         clock: Callable[[], float] = time.monotonic,
     ):
@@ -97,6 +99,7 @@ class AgentLoop:
         self._limits = limits or LimitsConfig()
         self._emitter = emitter or NullEmitter()
         self._hooks = hooks or HookBus(emitter=self._emitter)
+        self._skills = skills
         self._clock = clock
 
     async def run_turn(self, user_input: str) -> TurnResult:
@@ -182,8 +185,38 @@ class AgentLoop:
     # ------------------------------------------------------------------
 
     async def _perceive(self, ctx: TurnContext) -> tuple[State, str | None]:
+        skill_index = ""
+        skill_bodies: list[tuple[str, str]] = []
+        if self._skills is not None:
+            outcome = await self._skills.select_for_turn(
+                ctx.user_input, self._executor.specs()
+            )
+            for selection in outcome.selected:
+                skill = selection.skill
+                self._emit(
+                    ctx, "skill.selected", {"name": skill.name, "via": selection.via}
+                )
+                skill_bodies.append((skill.name, skill.body()))
+                ctx.budgets.tighten(
+                    max_tokens=skill.config.budget.max_tokens,
+                    max_tool_calls=skill.config.budget.max_tool_calls,
+                )
+            for skipped in outcome.skipped:
+                self._emit(
+                    ctx, "skill.skipped",
+                    {"name": skipped.name, "via": skipped.via,
+                     "reason": skipped.reason},
+                )
+            skill_index = self._skills.index_block()
         ctx.messages.append(
-            Message.system(build_system_prompt(self._intent, self._persona))
+            Message.system(
+                build_system_prompt(
+                    self._intent,
+                    self._persona,
+                    skill_index=skill_index,
+                    skill_bodies=tuple(skill_bodies),
+                )
+            )
         )
         ctx.messages.append(Message.user(ctx.user_input))
         return State.RETRIEVE, None
@@ -263,6 +296,7 @@ class AgentLoop:
         async with asyncio.TaskGroup() as tg:
             for i, call in enumerate(calls):
                 tg.create_task(run_one(i, call))
+        ctx.budgets.record_tool_calls(len(calls))
 
         for call, result in zip(calls, results, strict=True):
             assert result is not None

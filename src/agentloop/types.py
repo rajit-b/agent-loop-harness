@@ -7,7 +7,7 @@ boundaries and never leak past them.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import Any, Literal, Protocol, runtime_checkable
 
@@ -37,6 +37,11 @@ class ProviderError(AgentLoopError):
 
 class TransientProviderError(ProviderError):
     """Retryable provider failure: network error, timeout, 429, 5xx."""
+
+
+class SkillError(AgentLoopError):
+    """Explicit skill selection failed (unknown skill or unsatisfiable
+    required_tools). Loud by design (§10)."""
 
 
 class HookVeto(AgentLoopError):
@@ -78,6 +83,16 @@ class NullEmitter:
 
     def emit(self, kind: str, payload: Mapping[str, Any]) -> None:  # noqa: ARG002
         return None
+
+
+@runtime_checkable
+class EmbeddingProvider(Protocol):
+    """Structural seam for embeddings. Implementations live in
+    agentloop.rag (Phase 8, Ollama default); skills consume it for
+    semantic selection without importing that layer — same rationale as
+    TraceEmitter (§3 rule 3)."""
+
+    async def embed(self, texts: "Sequence[str]") -> list[list[float]]: ...
 
 
 # ---------------------------------------------------------------------------

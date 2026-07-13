@@ -22,11 +22,30 @@ class BudgetTracker:
         self._clock = clock
         self._started = clock()
         self.steps = 0  # PLAN entries
+        self.tool_calls = 0
         self.usage = Usage()
         self.cost = Cost(usd=Decimal("0"))
+        # effective ceilings; skill budgets tighten these, never widen (§10)
+        self._max_tokens = limits.max_tokens
+        self._max_tool_calls: int | None = None
+
+    def tighten(
+        self, *, max_tokens: int | None = None, max_tool_calls: int | None = None
+    ) -> None:
+        if max_tokens is not None:
+            self._max_tokens = min(self._max_tokens, max_tokens)
+        if max_tool_calls is not None:
+            self._max_tool_calls = (
+                max_tool_calls
+                if self._max_tool_calls is None
+                else min(self._max_tool_calls, max_tool_calls)
+            )
 
     def record_plan_entry(self) -> None:
         self.steps += 1
+
+    def record_tool_calls(self, count: int) -> None:
+        self.tool_calls += count
 
     def add(self, usage: Usage, cost: Cost) -> None:
         self.usage = self.usage + usage
@@ -40,7 +59,13 @@ class BudgetTracker:
         *new* PLAN entry; other budgets bind at every boundary."""
         if entering_plan and self.steps >= self._limits.max_steps:
             return "max_steps"
-        if self.usage.total_tokens > self._limits.max_tokens:
+        if (
+            entering_plan
+            and self._max_tool_calls is not None
+            and self.tool_calls >= self._max_tool_calls
+        ):
+            return "max_tool_calls"
+        if self.usage.total_tokens > self._max_tokens:
             return "max_tokens"
         if self.elapsed() > self._limits.max_wall_clock_s:
             return "max_wall_clock_s"

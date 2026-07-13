@@ -43,7 +43,7 @@ name = "Core layering"
 type = "layers"
 layers = [
     "agentloop.loop",
-    "agentloop.hooks",
+    "agentloop.skills : agentloop.hooks",
     "agentloop.models : agentloop.tools",
     "agentloop.config",
     "agentloop.types",

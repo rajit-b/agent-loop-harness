@@ -329,7 +329,9 @@ agent-loop-harness/
 │   │   ├── registrar.py                # the only capability surface
 │   │   └── loader.py                   # load → register → dispose; rollback on failure
 │   ├── rag/                            # Phase 8
-│   │   ├── sources.py │ chunk.py │ embed.py   # Source & EmbeddingProvider Protocols
+│   │   ├── sources.py │ chunk.py │ embed.py   # Source Protocol + embedding impls
+│   │   │                               #   (EmbeddingProvider Protocol lives in
+│   │   │                               #   types.py since Phase 6, per §3 rule 3)
 │   │   ├── store.py                    # sqlite-vec + FTS5 tables
 │   │   └── retrieve.py │ rerank.py     # hybrid + RRF, Reranker Protocol
 │   ├── memory/                         # Phase 9
