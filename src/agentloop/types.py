@@ -39,6 +39,15 @@ class TransientProviderError(ProviderError):
     """Retryable provider failure: network error, timeout, 429, 5xx."""
 
 
+class HookVeto(AgentLoopError):
+    """A hook vetoed an operation whose veto semantics abort the turn."""
+
+    def __init__(self, event: str, reason: str):
+        self.event = event
+        self.reason = reason
+        super().__init__(f"vetoed at {event}: {reason}")
+
+
 class ProviderExhaustedError(AgentLoopError):
     """Every provider in the fallback chain failed; fatal for the turn."""
 

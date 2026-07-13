@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from agentloop.loop.budgets import BudgetTracker
 from agentloop.types import Message
 
-TurnStatus = str  # "completed" | "budget_exceeded" | "error" | "cancelled"
+TurnStatus = str  # "completed" | "budget_exceeded" | "error" | "cancelled" | "vetoed"
 
 
 def build_system_prompt(intent: str, persona: str = "") -> str:

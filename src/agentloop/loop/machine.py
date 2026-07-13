@@ -26,6 +26,15 @@ from enum import StrEnum
 from typing import Any
 
 from agentloop.config.manifest import LimitsConfig
+from agentloop.hooks.bus import HookBus
+from agentloop.hooks.contract import (
+    ErrorPayload,
+    PostModelPayload,
+    PostToolPayload,
+    PreModelPayload,
+    PreToolPayload,
+    TurnEndPayload,
+)
 from agentloop.loop.budgets import BudgetTracker
 from agentloop.loop.context import TurnContext, TurnStatus, build_system_prompt
 from agentloop.models.protocol import CompletionRequest, CompletionResult, ModelProvider
@@ -33,6 +42,7 @@ from agentloop.tools.executor import ToolExecutor
 from agentloop.types import (
     AgentLoopError,
     Cost,
+    HookVeto,
     Message,
     NullEmitter,
     ToolResult,
@@ -76,6 +86,7 @@ class AgentLoop:
         intent: str,
         persona: str = "",
         limits: LimitsConfig | None = None,
+        hooks: HookBus | None = None,
         emitter: TraceEmitter | None = None,
         clock: Callable[[], float] = time.monotonic,
     ):
@@ -85,6 +96,7 @@ class AgentLoop:
         self._persona = persona
         self._limits = limits or LimitsConfig()
         self._emitter = emitter or NullEmitter()
+        self._hooks = hooks or HookBus(emitter=self._emitter)
         self._clock = clock
 
     async def run_turn(self, user_input: str) -> TurnResult:
@@ -124,15 +136,38 @@ class AgentLoop:
                 "loop.transition",
                 {"from": state, "to": State.TERMINATE, "reason": "cancelled"},
             )
-            raise
+            raise  # on_turn_end is NOT dispatched under cancellation
+        except HookVeto as exc:
+            ctx.status = "vetoed"
+            ctx.error = str(exc)
+            self._emit(
+                ctx,
+                "loop.transition",
+                {"from": state, "to": State.TERMINATE, "reason": f"vetoed:{exc.reason}"},
+            )
         except AgentLoopError as exc:
             ctx.status = "error"
             ctx.error = str(exc)
+            await self._hooks.dispatch(
+                "on_error",
+                ErrorPayload(error=str(exc), kind=type(exc).__name__, source="loop"),
+                run_id=ctx.run_id,
+            )
             self._emit(
                 ctx,
                 "loop.transition",
                 {"from": state, "to": State.TERMINATE, "reason": f"error:{exc}"},
             )
+        await self._hooks.dispatch(
+            "on_turn_end",
+            TurnEndPayload(
+                status=ctx.status,
+                steps=ctx.budgets.steps,
+                usage=ctx.budgets.usage,
+                cost=ctx.budgets.cost,
+            ),
+            run_id=ctx.run_id,
+        )
         return TurnResult(
             status=ctx.status,
             text=ctx.final_text,
@@ -159,6 +194,8 @@ class AgentLoop:
     async def _plan(self, ctx: TurnContext) -> tuple[State, str | None]:
         ctx.budgets.record_plan_entry()
         result = await self._model_call(ctx, tools=self._executor.specs())
+        if result is None:  # post_model veto: completion discarded, re-PLAN
+            return State.PLAN, "post_model_veto"
         if result.message.tool_calls:
             return State.ACT, "tool_calls"
         return State.REFLECT, "final_answer"
@@ -166,8 +203,29 @@ class AgentLoop:
     async def _act(self, ctx: TurnContext) -> tuple[State, str | None]:
         calls = ctx.messages[-1].tool_calls
         results: list[ToolResult | None] = [None] * len(calls)
+        specs = {spec.name: spec for spec in self._executor.specs()}
 
         async def run_one(index: int, call) -> None:
+            pre = await self._hooks.dispatch(
+                "pre_tool",
+                PreToolPayload(call=call, spec=specs.get(call.name)),
+                run_id=ctx.run_id,
+            )
+            if pre.vetoed:
+                assert pre.veto is not None
+                result = ToolResult(
+                    tool_call_id=call.id,
+                    content=f"tool call vetoed: {pre.veto.reason}",
+                    is_error=True,
+                )
+                results[index] = result
+                self._emit(
+                    ctx, "tool.result",
+                    {"id": call.id, "name": call.name, "is_error": True,
+                     "vetoed": True},
+                )
+                return
+            call = pre.payload.call  # hooks may have mutated the arguments
             self._emit(
                 ctx, "tool.call",
                 {"id": call.id, "name": call.name, "arguments": call.arguments},
@@ -182,6 +240,20 @@ class AgentLoop:
                     content=f"tool {call.name!r} failed: {type(exc).__name__}: {exc}",
                     is_error=True,
                 )
+            post = await self._hooks.dispatch(
+                "post_tool",
+                PostToolPayload(call=call, result=result),
+                run_id=ctx.run_id,
+            )
+            if post.vetoed:
+                assert post.veto is not None
+                result = ToolResult(
+                    tool_call_id=call.id,
+                    content=f"tool result vetoed: {post.veto.reason}",
+                    is_error=True,
+                )
+            else:
+                result = post.payload.result
             self._emit(
                 ctx, "tool.result",
                 {"id": call.id, "name": call.name, "is_error": result.is_error},
@@ -224,10 +296,34 @@ class AgentLoop:
 
     async def _model_call(
         self, ctx: TurnContext, *, tools, wrap_up: bool = False
-    ) -> CompletionResult:
+    ) -> CompletionResult | None:
+        """One hooked model call. Returns None when a post_model veto
+        discarded the completion (caller re-PLANs). On wrap-up calls a
+        post_model veto is ignored — honoring it would demand a re-PLAN
+        the budget no longer permits — but mutations still apply."""
         request = CompletionRequest(messages=tuple(ctx.messages), tools=tuple(tools))
-        result = await self._provider.complete(request)
-        ctx.budgets.add(result.usage, result.cost)
+        pre = await self._hooks.dispatch(
+            "pre_model", PreModelPayload(request=request, wrap_up=wrap_up),
+            run_id=ctx.run_id,
+        )
+        if pre.vetoed:
+            assert pre.veto is not None
+            raise HookVeto("pre_model", pre.veto.reason)  # aborts the turn
+        result = await self._provider.complete(pre.payload.request)
+        ctx.budgets.add(result.usage, result.cost)  # the call happened: account it
+        post = await self._hooks.dispatch(
+            "post_model", PostModelPayload(result=result, wrap_up=wrap_up),
+            run_id=ctx.run_id,
+        )
+        if post.vetoed and not wrap_up:
+            self._emit(
+                ctx, "model.discarded",
+                {"reason": post.veto.reason if post.veto else "",
+                 "vetoed_by": post.vetoed_by},
+            )
+            return None
+        if not post.vetoed:
+            result = post.payload.result
         ctx.messages.append(result.message)
         self._emit(
             ctx,
