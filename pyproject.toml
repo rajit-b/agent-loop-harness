@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.27",
     "mcp>=1.0",
     "packaging>=23.0",
+    "sqlite-vec>=0.1.6",
 ]
 
 [project.optional-dependencies]
@@ -44,8 +45,8 @@ name = "Core layering"
 type = "layers"
 layers = [
     "agentloop.loop : agentloop.plugins",
-    "agentloop.skills : agentloop.hooks",
-    "agentloop.models : agentloop.tools",
+    "agentloop.skills : agentloop.hooks : agentloop.rag",
+    "agentloop.models : agentloop.tools : agentloop.storage",
     "agentloop.config",
     "agentloop.types",
 ]

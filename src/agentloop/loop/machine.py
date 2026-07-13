@@ -30,14 +30,17 @@ from agentloop.hooks.bus import HookBus
 from agentloop.hooks.contract import (
     ErrorPayload,
     PostModelPayload,
+    PostRetrievalPayload,
     PostToolPayload,
     PreModelPayload,
+    PreRetrievalPayload,
     PreToolPayload,
     TurnEndPayload,
 )
 from agentloop.loop.budgets import BudgetTracker
 from agentloop.loop.context import TurnContext, TurnStatus, build_system_prompt
 from agentloop.models.protocol import CompletionRequest, CompletionResult, ModelProvider
+from agentloop.rag.retrieve import Retriever, format_context_block
 from agentloop.skills.manager import SkillManager
 from agentloop.tools.executor import ToolExecutor
 from agentloop.types import (
@@ -46,6 +49,7 @@ from agentloop.types import (
     HookVeto,
     Message,
     NullEmitter,
+    TextPart,
     ToolResult,
     TraceEmitter,
     Usage,
@@ -89,6 +93,7 @@ class AgentLoop:
         limits: LimitsConfig | None = None,
         hooks: HookBus | None = None,
         skills: SkillManager | None = None,
+        retriever: Retriever | None = None,
         emitter: TraceEmitter | None = None,
         clock: Callable[[], float] = time.monotonic,
     ):
@@ -100,6 +105,7 @@ class AgentLoop:
         self._emitter = emitter or NullEmitter()
         self._hooks = hooks or HookBus(emitter=self._emitter)
         self._skills = skills
+        self._retriever = retriever
         self._clock = clock
 
     async def run_turn(self, user_input: str) -> TurnResult:
@@ -222,7 +228,46 @@ class AgentLoop:
         return State.RETRIEVE, None
 
     async def _retrieve(self, ctx: TurnContext) -> tuple[State, str | None]:
-        return State.PLAN, None  # memory recall + RAG land here (Phases 8-9)
+        # memory recall joins in Phase 9
+        if self._retriever is None:
+            return State.PLAN, None
+        pre = await self._hooks.dispatch(
+            "pre_retrieval",
+            PreRetrievalPayload(query=ctx.user_input, top_k=self._retriever.top_k),
+            run_id=ctx.run_id,
+        )
+        if pre.vetoed:  # §9: retrieval skipped for this turn
+            self._emit(
+                ctx, "retrieval.skipped",
+                {"reason": pre.veto.reason if pre.veto else ""},
+            )
+            return State.PLAN, "retrieval_vetoed"
+        chunks = await self._retriever.retrieve(
+            pre.payload.query, top_k=pre.payload.top_k
+        )
+        post = await self._hooks.dispatch(
+            "post_retrieval",
+            PostRetrievalPayload(query=pre.payload.query, chunks=tuple(chunks)),
+            run_id=ctx.run_id,
+        )
+        chunks = [] if post.vetoed else list(post.payload.chunks)  # veto drops all
+        self._emit(
+            ctx, "retrieval.complete",
+            {"query": pre.payload.query, "chunks": len(chunks),
+             "dropped": post.vetoed},
+        )
+        if chunks:
+            # §11: the context block attaches to the current user message
+            user_message = ctx.messages[-1]
+            ctx.messages[-1] = user_message.model_copy(
+                update={
+                    "content": (
+                        *user_message.content,
+                        TextPart(text="\n\n" + format_context_block(chunks)),
+                    )
+                }
+            )
+        return State.PLAN, None
 
     async def _plan(self, ctx: TurnContext) -> tuple[State, str | None]:
         ctx.budgets.record_plan_entry()
