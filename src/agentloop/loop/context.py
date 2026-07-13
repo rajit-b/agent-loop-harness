@@ -20,14 +20,17 @@ def build_system_prompt(
     intent: str,
     persona: str = "",
     *,
+    memory_block: str = "",
     skill_index: str = "",
     skill_bodies: tuple[tuple[str, str], ...] = (),
 ) -> str:
-    # §11 order: intent → persona → [long-term memory: Phase 9]
-    #            → skill index → selected skill bodies
+    # §11 order (fixed): intent → persona → long-term memory facts
+    #                    → skill index → selected skill bodies
     parts = [intent.strip()]
     if persona.strip():
         parts.append(persona.strip())
+    if memory_block:
+        parts.append(memory_block)
     if skill_index:
         parts.append(skill_index)
     for name, body in skill_bodies:
@@ -48,6 +51,10 @@ class TurnContext:
     status: TurnStatus = "completed"
     error: str | None = None
     seq: int = 0
+    # prompt components stashed by PERCEIVE so RETRIEVE can rebuild the
+    # system message with the recalled-memory block (§11 order)
+    skill_index: str = ""
+    skill_bodies: tuple[tuple[str, str], ...] = ()
 
     def next_seq(self) -> int:
         self.seq += 1

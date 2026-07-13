@@ -39,6 +39,7 @@ from agentloop.hooks.contract import (
 )
 from agentloop.loop.budgets import BudgetTracker
 from agentloop.loop.context import TurnContext, TurnStatus, build_system_prompt
+from agentloop.memory.manager import MemoryManager, facts_block
 from agentloop.models.protocol import CompletionRequest, CompletionResult, ModelProvider
 from agentloop.rag.retrieve import Retriever, format_context_block
 from agentloop.skills.manager import SkillManager
@@ -94,6 +95,7 @@ class AgentLoop:
         hooks: HookBus | None = None,
         skills: SkillManager | None = None,
         retriever: Retriever | None = None,
+        memory: MemoryManager | None = None,
         emitter: TraceEmitter | None = None,
         clock: Callable[[], float] = time.monotonic,
     ):
@@ -106,6 +108,7 @@ class AgentLoop:
         self._hooks = hooks or HookBus(emitter=self._emitter)
         self._skills = skills
         self._retriever = retriever
+        self._memory = memory
         self._clock = clock
 
     async def run_turn(self, user_input: str) -> TurnResult:
@@ -167,6 +170,17 @@ class AgentLoop:
                 "loop.transition",
                 {"from": state, "to": State.TERMINATE, "reason": f"error:{exc}"},
             )
+        if self._memory is not None:
+            # §11: episodic write-back + summarization + consolidation.
+            # Memory failures must never change the turn's outcome.
+            try:
+                await self._memory.on_turn_end(
+                    user_text=ctx.user_input,
+                    assistant_text=ctx.final_text,
+                    turn_id=ctx.run_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._emit(ctx, "memory.error", {"error": f"{type(exc).__name__}: {exc}"})
         await self._hooks.dispatch(
             "on_turn_end",
             TurnEndPayload(
@@ -214,21 +228,38 @@ class AgentLoop:
                      "reason": skipped.reason},
                 )
             skill_index = self._skills.index_block()
+        ctx.skill_index = skill_index
+        ctx.skill_bodies = tuple(skill_bodies)
         ctx.messages.append(
             Message.system(
                 build_system_prompt(
                     self._intent,
                     self._persona,
                     skill_index=skill_index,
-                    skill_bodies=tuple(skill_bodies),
+                    skill_bodies=ctx.skill_bodies,
                 )
             )
         )
+        if self._memory is not None:  # §11 injection point 2: summary + tail
+            ctx.messages.extend(self._memory.history_messages())
         ctx.messages.append(Message.user(ctx.user_input))
         return State.RETRIEVE, None
 
     async def _retrieve(self, ctx: TurnContext) -> tuple[State, str | None]:
-        # memory recall joins in Phase 9
+        if self._memory is not None:
+            recalled = await self._memory.recall(ctx.user_input)
+            if recalled:
+                # §11 injection point 1: facts join the system prompt, which
+                # is rebuilt here — nothing has been sent to a provider yet
+                ctx.messages[0] = Message.system(
+                    build_system_prompt(
+                        self._intent,
+                        self._persona,
+                        memory_block=facts_block(recalled),
+                        skill_index=ctx.skill_index,
+                        skill_bodies=ctx.skill_bodies,
+                    )
+                )
         if self._retriever is None:
             return State.PLAN, None
         pre = await self._hooks.dispatch(
