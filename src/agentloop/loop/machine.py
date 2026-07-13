@@ -111,10 +111,13 @@ class AgentLoop:
         self._memory = memory
         self._clock = clock
 
-    async def run_turn(self, user_input: str) -> TurnResult:
+    async def run_turn(self, user_input: str, *, turn_id: str | None = None) -> TurnResult:
+        # turn_id is normally auto-generated; replay passes the recorded one
+        # so event payloads align byte-for-byte (§12)
         ctx = TurnContext(
             user_input=user_input,
             budgets=BudgetTracker(self._limits, clock=self._clock),
+            **({"run_id": turn_id} if turn_id else {}),
         )
         handlers: Mapping[State, Any] = {
             State.PERCEIVE: self._perceive,

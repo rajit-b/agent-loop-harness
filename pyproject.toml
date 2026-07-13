@@ -44,7 +44,7 @@ root_package = "agentloop"
 name = "Core layering"
 type = "layers"
 layers = [
-    "agentloop.loop : agentloop.plugins",
+    "agentloop.loop : agentloop.plugins : agentloop.observability",
     "agentloop.skills : agentloop.hooks : agentloop.rag : agentloop.memory",
     "agentloop.models : agentloop.tools : agentloop.storage",
     "agentloop.config",
