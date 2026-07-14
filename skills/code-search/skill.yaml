@@ -1,0 +1,15 @@
+name: code-search
+description: >
+  Search this codebase for symbols, definitions, and usages, then read the
+  matching files. Use for "where is", "find", "how does X work" questions
+  about the code itself.
+triggers:
+  patterns:
+    - "where is"
+    - "find "
+    - "how does .* work"
+    - "search .*code"
+required_tools:
+  - code.*
+budget:
+  max_tool_calls: 8

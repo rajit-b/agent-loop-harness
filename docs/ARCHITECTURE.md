@@ -1,6 +1,6 @@
 # Agent Loop Harness — Architecture
 
-**Status:** Phase 0 deliverable. No code exists yet. This document is the contract the implementation phases build against; if a later phase contradicts it, the phase stops and this document is amended first.
+**Status:** Contract complete — all eleven phases implemented (§14). This document was the Phase 0 contract the implementation built against; amendments made along the way (each flagged in its phase) are folded in: `model.pricing` (§5, A9), `tools.sandbox` (§5, A7), and the `TraceEmitter`/`EmbeddingProvider` Protocols living in `types.py` per rule 3 (§3).
 
 ---
 
@@ -353,17 +353,21 @@ agent-loop-harness/
 
 ## 14. Phase plan — acceptance criteria
 
-| Phase | Delivers | Proven by |
-|---|---|---|
-| 0 | This document | Your sign-off |
-| 1 | Manifest models, JSON Schema, loader, resolution | Valid/invalid manifest fixtures; env & CLI override precedence tests; provenance correctness |
-| 2 | Model Protocol + Ollama, then Anthropic | Golden-file round-trips of tool-call normalization per provider; fallback chain advances on injected failures; token/cost accounting matches fixtures |
-| 3 | Bare loop + echo stub tool | State-transition trace matches expected sequence; step/token/clock caps each force termination; cancellation mid-ACT terminates cleanly |
-| 4 | MCP client, gating, sandbox | Discovery against a real stdio server; allowlist deny path; path-jail escape attempts rejected; timeout kills a hung tool |
-| 5 | Hook bus | A mutating pre_tool hook observably alters arguments; a vetoing hook produces the per-event veto behavior from §9's table; priority ordering; a throwing hook doesn't kill the run |
-| 6 | Skills + progressive disclosure | Token-count proof that only descriptions enter context pre-selection; explicit/trigger/semantic selection each exercised; missing required_tools fails loudly |
-| 7 | Plugins | Example plugin registers a tool + hook + CLI cmd; version-incompatible plugin rejected; mid-register failure rolls back cleanly |
-| 8 | RAG | Ingest→retrieve round-trip with citations; hash-based incremental reindex skips unchanged files; hybrid beats vector-only on a keyword-heavy fixture query |
-| 9 | Memory | Overflow summarization; explicit-preference promotion on first sight; recurrence rule; decay archiving; injection points verified in assembled prompts |
-| 10 | Observability + replay | A recorded run replays byte-identically; a deliberate code change makes replay diverge with a pointed assertion |
-| 11 | Codebase-QA example | End-to-end: question → code-search skill → ripgrep MCP → secret-redaction hook fires → cited answer; Jira plugin lookup; convention recalled from long-term memory in a fresh session |
+All eleven phases are implemented and committed, one commit per gate; the
+suite stands at 313 passing tests with the import-linter layer contract
+enforced in every phase. Status column: ✅ = delivered and gate-proven.
+
+| Phase | Delivers | Proven by | Status |
+|---|---|---|---|
+| 0 | This document | Your sign-off | ✅ |
+| 1 | Manifest models, JSON Schema, loader, resolution | Valid/invalid manifest fixtures; env & CLI override precedence tests; provenance correctness | ✅ |
+| 2 | Model Protocol + Ollama, then Anthropic | Golden-file round-trips of tool-call normalization per provider; fallback chain advances on injected failures; token/cost accounting matches fixtures | ✅ |
+| 3 | Bare loop + echo stub tool | State-transition trace matches expected sequence; step/token/clock caps each force termination; cancellation mid-ACT terminates cleanly | ✅ |
+| 4 | MCP client, gating, sandbox | Discovery against a real stdio server; allowlist deny path; path-jail escape attempts rejected; timeout kills a hung tool | ✅ |
+| 5 | Hook bus | A mutating pre_tool hook observably alters arguments; a vetoing hook produces the per-event veto behavior from §9's table; priority ordering; a throwing hook doesn't kill the run | ✅ |
+| 6 | Skills + progressive disclosure | Token-count proof that only descriptions enter context pre-selection; explicit/trigger/semantic selection each exercised; missing required_tools fails loudly | ✅ |
+| 7 | Plugins | Example plugin registers a tool + hook + CLI cmd; version-incompatible plugin rejected; mid-register failure rolls back cleanly | ✅ |
+| 8 | RAG | Ingest→retrieve round-trip with citations; hash-based incremental reindex skips unchanged files; hybrid beats vector-only on a keyword-heavy fixture query | ✅ |
+| 9 | Memory | Overflow summarization; explicit-preference promotion on first sight; recurrence rule; decay archiving; injection points verified in assembled prompts | ✅ |
+| 10 | Observability + replay | A recorded run replays byte-identically; a deliberate code change makes replay diverge with a pointed assertion | ✅ |
+| 11 | Codebase-QA example | End-to-end: question → code-search skill → ripgrep MCP → secret-redaction hook fires → cited answer; Jira plugin lookup; convention recalled from long-term memory in a fresh session | ✅ |

@@ -1,0 +1,100 @@
+# Codebase-QA agent — the worked example (§ worked example, Phase 11).
+#
+# A code-search skill backed by filesystem + ripgrep MCP tools, a Jira plugin
+# registering an issue-lookup tool, a pre_tool hook that redacts secrets from
+# tool arguments, RAG over the repo's docs, and long-term memory holding the
+# user's coding conventions.
+#
+# To run this against real tools you need `mcp-server-filesystem` and an MCP
+# ripgrep server on PATH, plus an embedding backend (Ollama by default). The
+# end-to-end test wires the same skill/plugin/hook against a fixture MCP
+# server so it runs offline and deterministically.
+
+version: "1.0"
+
+intent: >
+  Answer questions about this codebase accurately. Search and read the code
+  before answering, cite files as path:line, and say so plainly when you are
+  unsure. Respect the user's stated coding conventions.
+
+model:
+  provider: ollama
+  name: qwen2.5:14b
+  params:
+    temperature: 0.1
+  fallback:
+    - anthropic/claude-sonnet-5
+
+agents:
+  - name: qa
+    persona: You are a precise, citation-driven codebase assistant.
+
+tools:
+  mcp_servers:
+    - name: code
+      transport: stdio
+      command: mcp-server-filesystem
+      args: ["--root", "."]
+    - name: jira
+      transport: http
+      url: http://localhost:8931
+  # Only these canonical 'server.tool' names may execute (fail closed).
+  allowlist:
+    - code.search
+    - code.read_file
+    - jira.issue_lookup
+  sandbox:
+    roots: ["."]            # path-hinted tool args must resolve inside the repo
+    max_result_chars: 100000
+
+skills:
+  - ../../skills/code-search
+
+plugins:
+  - name: jira
+    source: ../../plugins/jira
+    version: ">=0.1,<0.2"
+    config:
+      base_url: https://example.atlassian.net
+
+hooks:
+  pre_tool:
+    - handler: codebaseqa_hooks:redact_secrets
+      priority: 10
+      config:
+        patterns:
+          - "sk-[A-Za-z0-9_-]{6,}"
+          - "(?i)ghp_[A-Za-z0-9]{20,}"
+
+rag:
+  sources: ["./docs"]
+  chunk:
+    size: 512
+    overlap: 64
+  embedding:
+    provider: ollama
+    model: nomic-embed-text
+  top_k: 4
+  hybrid:
+    vector_k: 20
+    fts_k: 20
+    rrf_k: 60
+
+memory:
+  enabled: true
+  short_term:
+    max_tokens: 8000
+  long_term:
+    promotion_confidence: 0.7
+    recurrence_min: 2
+    dedup_cosine: 0.92
+    decay_lambda: 0.01
+    score_floor: 0.15
+
+limits:
+  max_steps: 12
+  max_tokens: 200000
+  max_wall_clock_s: 300
+  max_cost_usd: 1.00
+  tool_timeout_s: 30
+  reflection_retries: 1
