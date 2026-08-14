@@ -1,0 +1,58 @@
+# Research-digest agent — a second worked example, showing the harness drives
+# an entirely different use case than codebase-QA.
+#
+# This agent condenses long documents and threads into structured digests. It
+# is deliberately minimal: NO MCP servers, NO RAG, NO memory — just a Claude
+# Sonnet model, one skill, and one plugin. The plugin registers a `summarize`
+# tool whose operation is itself a Claude Sonnet call, so the skill's core
+# work is model-powered. This is how you "use a model inside a skill" the
+# framework-native way (skills invoke tools; tools hold the implementation).
+#
+# To run it you need only an Anthropic API key:
+#     export ANTHROPIC_API_KEY=sk-ant-...
+#     agentloop run -m examples/research-digest/agent.manifest.yaml \
+#       "Summarize this: <paste a long document>"
+
+version: "1.0"
+
+intent: >
+  Produce clear, faithful digests of documents and discussion threads. Lead
+  with a one-line TL;DR, then the key points, then any action items. Never
+  invent facts that are not in the source.
+
+model:
+  provider: anthropic
+  name: claude-sonnet-5
+  params:
+    max_tokens: 2048
+
+agents:
+  - name: analyst
+    persona: You are a sharp research analyst who values brevity and accuracy.
+
+tools:
+  # The only tool is the plugin's model-backed summarizer — no MCP servers.
+  allowlist:
+    - summarizer.summarize
+
+skills:
+  - ../../skills/digest
+
+plugins:
+  - name: summarizer
+    source: ../../plugins/summarizer
+    version: ">=0.1,<0.2"
+    config:
+      model: claude-sonnet-5   # the summarize tool calls this model
+      max_tokens: 1024
+
+# No document corpus to retrieve over, and each digest stands alone.
+memory:
+  enabled: false
+
+limits:
+  max_steps: 6
+  max_tokens: 100000
+  max_wall_clock_s: 120
+  max_cost_usd: 0.50
+  tool_timeout_s: 90        # a Sonnet summarize call can take a while
