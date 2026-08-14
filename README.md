@@ -150,7 +150,20 @@ Two design rules are load-bearing:
 
 ---
 
-## The worked example: a codebase-QA agent
+## Examples
+
+Two worked examples show the harness composing only the layers a use case
+needs — they are deliberately opposite shapes:
+
+- **[`examples/codebase-qa/`](examples/codebase-qa/)** — a local (Ollama) agent
+  with filesystem/ripgrep MCP tools, a Jira plugin, a secret-redaction hook,
+  RAG over the repo docs, and long-term memory.
+- **[`examples/research-digest/`](examples/research-digest/)** — a **Claude
+  Sonnet** agent that digests documents. No MCP servers, no RAG, no memory —
+  just a model, one skill, and a plugin whose `summarize` tool is *itself* a
+  Sonnet call. Runs with only an `ANTHROPIC_API_KEY`.
+
+### Codebase-QA in detail
 
 [`examples/codebase-qa/`](examples/codebase-qa/) assembles everything into one
 agent: a **code-search skill** ([`skills/code-search/`](skills/code-search/))

@@ -1,0 +1,16 @@
+name: digest
+description: >
+  Condense a long document, article, or discussion thread into a structured
+  digest — a one-line TL;DR, the key points, and any action items. Use for
+  "summarize", "digest", "give me the gist", or "TL;DR" requests.
+triggers:
+  patterns:
+    - "summar[iy]"
+    - "digest"
+    - "tl;?dr"
+    - "key points"
+    - "the gist"
+required_tools:
+  - summarizer.summarize
+budget:
+  max_tool_calls: 4
