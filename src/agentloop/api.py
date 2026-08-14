@@ -126,6 +126,14 @@ class Agent:
         candidate = Path(path)
         return candidate if candidate.is_absolute() else self._base_dir / candidate
 
+    def _resolve_plugin_source(self, source: str) -> str:
+        """Local plugin paths resolve relative to the manifest, like skills
+        and rag.sources; an entry-point name (no such path) passes through."""
+        if Path(source).is_absolute():
+            return source
+        candidate = self._base_dir / source
+        return str(candidate) if candidate.exists() else source
+
     async def _ensure_embedder(self) -> EmbeddingProvider:
         if self._embedder is None:
             self._embedder = OllamaEmbedder(
@@ -147,7 +155,11 @@ class Agent:
             tools=registry, hooks=hooks, skills=skill_objects,
             cli=cli_commands, emitter=self._emitter,
         )
-        plugin_report = plugins.load_all(self.manifest.plugins)
+        plugin_configs = tuple(
+            pc.model_copy(update={"source": self._resolve_plugin_source(pc.source)})
+            for pc in self.manifest.plugins
+        )
+        plugin_report = plugins.load_all(plugin_configs)
         self._plugins = plugins
 
         # manifest hooks install after plugins → same-priority tie goes to
